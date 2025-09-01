@@ -5,28 +5,39 @@ import (
 	"todolist/cmd/repositories"
 )
 
-func GetTodos() ([]models.Todo, error) {
-	rows, err := repositories.GetTodos()
-	if err != nil {
-		return nil, err
-	}
-	var todoList []models.Todo
-
-	for rows.Next() {
-		var todo models.Todo
-		err = rows.Scan(&todo.ID, &todo.Todo)
-		if err != nil {
-			return nil, err
-		}
-		todoList = append(todoList, todo)
-	}
-
-	return todoList, err
+type TodoService interface {
+	CreateTodo(todo models.Todo) (int64, error)
+	GetTodoById(id int) (*models.Todo, error)
+	GetAllTodos() ([]models.Todo, error)
+	UpdateTodo(id int, todo models.Todo) (*models.Todo, error)
+	DeleteTodo(id int) error
 }
 
-func CreateTodo(newItem string) (int64, error) {
+type TodoServiceImpl struct {
+	store repositories.TodoStore
+}
 
-	result, err := repositories.CreateTodo(newItem)
-	id, _ := result.LastInsertId()
-	return id, err
+// NewTodoService creates a new TodoService instance
+func NewTodoService(store repositories.TodoStore) TodoService {
+	return &TodoServiceImpl{store: store}
+}
+
+func (s *TodoServiceImpl) CreateTodo(todo models.Todo) (int64, error) {
+	return s.store.CreateTodo(todo)
+}
+
+func (s *TodoServiceImpl) GetAllTodos() ([]models.Todo, error) {
+	return s.store.GetAllTodos()
+}
+
+func (s *TodoServiceImpl) GetTodoById(id int) (*models.Todo, error) {
+	return s.store.GetTodoById(id)
+}
+
+func (s *TodoServiceImpl) UpdateTodo(id int, todo models.Todo) (*models.Todo, error) {
+	return s.store.UpdateTodo(id, todo)
+}
+
+func (s *TodoServiceImpl) DeleteTodo(id int) error {
+	return s.store.DeleteTodo(id)
 }

@@ -1,15 +1,30 @@
 package routes
 
 import (
-	todo_controller "todolist/cmd/controllers"
+	"todolist/cmd/controllers"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
-func SetupRoutes(router *mux.Router) {
-	apiRouter := router.PathPrefix("/api").Subrouter()
+type TodoRoutes interface {
+	SetupRoutes(router *gin.Engine)
+}
 
-	apiRouter.HandleFunc("/todo", todo_controller.GetTodosController).Methods("GET")
-	apiRouter.HandleFunc("/todo", todo_controller.CreateTodoController).Methods("POST")
+type TodoRoutesImpl struct {
+	todoController controllers.TodoController
+}
 
+// NewTodoRoutes creates a new TodoRoutes instance
+func NewTodoRoutes(todoController controllers.TodoController) TodoRoutes {
+	return &TodoRoutesImpl{todoController: todoController}
+}
+
+func (c *TodoRoutesImpl) SetupRoutes(router *gin.Engine) {
+	apiGroup := router.Group("/api")
+
+	apiGroup.POST("/todo", c.todoController.CreateTodo)
+	apiGroup.GET("/todo", c.todoController.GetAllTodos)
+	apiGroup.GET("/todo/:id", c.todoController.GetTodoById)
+	apiGroup.PUT("/todo/:id", c.todoController.UpdateTodo)
+	apiGroup.DELETE("/todo/:id", c.todoController.DeleteTodo)
 }

@@ -1,57 +1,144 @@
 package controllers
 
 import (
-	"encoding/json"
 	"net/http"
-	todo_service "todolist/cmd/services"
+	"strconv"
+	"todolist/cmd/models"
+	"todolist/cmd/services"
+
+	"github.com/gin-gonic/gin"
 )
 
-func GetTodosController(w http.ResponseWriter, r *http.Request) {
-	todoList, err := todo_service.GetTodos()
-
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal Server Error"))
-		return
-	}
-
-	jsonTodoList, err := json.Marshal(todoList)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal Server Error"))
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(jsonTodoList))
+type TodoController interface {
+	CreateTodo(c *gin.Context)
+	GetTodoById(c *gin.Context)
+	GetAllTodos(c *gin.Context)
+	UpdateTodo(c *gin.Context)
+	DeleteTodo(c *gin.Context)
 }
 
-func CreateTodoController(w http.ResponseWriter, r *http.Request) {
-	decoder := json.NewDecoder(r.Body)
-	var todo string
-	err := decoder.Decode(&todo)
+type TodoControllerImpl struct {
+	todoService services.TodoService
+}
+
+// NewTodoController creates a new TodoController instance
+func NewTodoController(todoService services.TodoService) TodoController {
+	return &TodoControllerImpl{todoService: todoService}
+}
+
+func (s *TodoControllerImpl) CreateTodo(c *gin.Context) {
+	var body models.Todo
+	err := c.ShouldBindJSON(&body)
 
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Bad Request"))
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Bad Request"})
 		return
 	}
 
-	todoList, err := todo_service.CreateTodo(todo)
+	todoId, err := s.todoService.CreateTodo(body)
 
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal Server Error"))
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
 		return
 	}
 
-	jsonTodoList, err := json.Marshal(todoList)
+	c.Header("Content-Type", "application/json")
+	c.JSON(http.StatusCreated, gin.H{"id": todoId})
+}
+
+func (s *TodoControllerImpl) GetAllTodos(c *gin.Context) {
+	todoList, err := s.todoService.GetAllTodos()
+
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal Server Error"))
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(jsonTodoList))
+	c.Header("Content-Type", "application/json")
+	c.JSON(http.StatusOK, todoList)
+}
+
+func (s *TodoControllerImpl) GetTodoById(c *gin.Context) {
+	todoId, found := c.Params.Get("id")
+
+	if !found {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "missing id info"})
+		return
+	}
+
+	todoIdAsNumber, err := strconv.Atoi(todoId)
+
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "id doesn't have the correct format"})
+		return
+	}
+
+	todo, err := s.todoService.GetTodoById(todoIdAsNumber)
+
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		return
+	}
+
+	c.Header("Content-Type", "application/json")
+	c.JSON(http.StatusOK, todo)
+}
+
+func (s *TodoControllerImpl) UpdateTodo(c *gin.Context) {
+	todoId, found := c.Params.Get("id")
+
+	if !found {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "missing id info"})
+		return
+	}
+
+	todoIdAsNumber, err := strconv.Atoi(todoId)
+
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "id doesn't have the correct format"})
+		return
+	}
+
+	var todoBody models.Todo
+	err = c.ShouldBindJSON(&todoBody)
+
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Bad Request"})
+		return
+	}
+
+	updatedTodo, err := s.todoService.UpdateTodo(todoIdAsNumber, todoBody)
+
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		return
+	}
+
+	c.Header("Content-Type", "application/json")
+	c.JSON(http.StatusOK, updatedTodo)
+}
+
+func (s *TodoControllerImpl) DeleteTodo(c *gin.Context) {
+	todoId, found := c.Params.Get("id")
+
+	if !found {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "missing id info"})
+		return
+	}
+
+	todoIdAsNumber, err := strconv.Atoi(todoId)
+
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "id doesn't have the correct format"})
+		return
+	}
+
+	err = s.todoService.DeleteTodo(todoIdAsNumber)
+
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		return
+	}
+
+	c.JSON(http.StatusNoContent, nil)
 }
